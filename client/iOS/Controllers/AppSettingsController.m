@@ -11,6 +11,7 @@
 #import "AppSettingsController.h"
 #import "Utils.h"
 #import "Toast+UIView.h"
+#include <freerdp/settings.h>
 
 @implementation AppSettingsController
 
@@ -250,13 +251,26 @@
 	// clear certificate cache
 	if ([indexPath section] == SECTION_CERTIFICATE_HANDLING_SETTINGS && [indexPath row] == 1)
 	{
-		// delete certificates cache
-		NSError *err;
-		if ([[NSFileManager defaultManager]
-		        removeItemAtPath:[[NSSearchPathForDirectoriesInDomains(
-		                             NSDocumentDirectory, NSUserDomainMask, YES) lastObject]
-		                             stringByAppendingPathComponent:@"/.freerdp"]
-		                   error:&err])
+		BOOL cleared = YES;
+		// get config path using freerdp api
+		char *config = freerdp_settings_get_config_path();
+		if (config)
+		{
+			NSString *configPath = [NSString stringWithUTF8String:config];
+			NSFileManager *fileManager = [NSFileManager defaultManager];
+			NSString *path = [configPath stringByAppendingPathComponent:@"server"];
+			if ([fileManager fileExistsAtPath:path] && ![fileManager removeItemAtPath:path
+			                                                                    error:nil])
+				cleared = NO;
+
+			free(config);
+		}
+		else
+		{
+			cleared = NO;
+		}
+
+		if (cleared)
 			[[self view] makeToast:NSLocalizedString(@"Certificate Cache cleared!",
 			                                         @"Clear Certificate cache success message")
 			              duration:ToastDurationNormal
