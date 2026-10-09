@@ -49,6 +49,10 @@
 
 	// keyboard extension view
 	AdvancedKeyboardView *_advanced_keyboard_view;
+
+	// height of the system keyboard per orientation
+	CGFloat _keyboard_height_portrait;
+	CGFloat _keyboard_height_landscape;
 	CGSize _last_session_viewport_size;
 
 	CGPoint _prev_long_press_position;

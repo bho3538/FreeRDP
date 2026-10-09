@@ -17,3 +17,6 @@ UIImage *RDPWindowsLogoImage(CGFloat size);
 
 // create button
 UIButton *RDPCreateKeyButton(NSString *title, UIImage *image);
+
+// create a page tab button (AdvancedKeyboard tab button)
+UIButton *RDPCreateTabButton(NSString *title);

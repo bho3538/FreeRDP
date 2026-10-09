@@ -19,7 +19,6 @@
 #import "ConnectionParams.h"
 
 #define TOOLBAR_HEIGHT 44
-#define ADVANCED_KEYBOARD_HEIGHT 200
 
 @interface RDPSessionViewController (Private)
 - (void)showSessionToolbar:(BOOL)show;
@@ -37,6 +36,8 @@
 - (void)moveCursorToSessionViewPosition:(CGPoint)position;
 - (void)sendMouseButtonEvent:(int)event;
 - (BOOL)isKeyboardActive;
+- (BOOL)isLandscape;
+- (CGFloat)advancedKeyboardHeight;
 @end
 
 @implementation RDPSessionViewController
@@ -85,6 +86,11 @@
 	// init keyboard toolbar
 	_keyboard_toolbar = [[RDPKeyboardToolbarView alloc] initWithTarget:self];
 	[_dummy_textfield setInputAccessoryView:_keyboard_toolbar];
+
+	// the undo/redo/paste shortcuts of the iPad keyboard act on the hidden text field, not on
+	// the remote session, so don't show them
+	[[_dummy_textfield inputAssistantItem] setLeadingBarButtonGroups:@[]];
+	[[_dummy_textfield inputAssistantItem] setTrailingBarButtonGroups:@[]];
 
 	// init gesture recognizers
 	[self initGestureRecognizers];
@@ -136,6 +142,24 @@
 - (UIStatusBarAnimation)preferredStatusBarUpdateAnimation
 {
 	return UIStatusBarAnimationSlide;
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size
+       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
+{
+	[super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+
+	// the system keyboard changes its height with the orientation, so follow it
+	[coordinator
+	    animateAlongsideTransition:nil
+	                    completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+		                    if (!_advanced_keyboard_view)
+			                    return;
+		                    CGRect frame = [_advanced_keyboard_view frame];
+		                    frame.size.height = [self advancedKeyboardHeight];
+		                    [_advanced_keyboard_view setFrame:frame];
+		                    [_dummy_textfield reloadInputViews];
+	                    }];
 }
 
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
@@ -301,11 +325,6 @@
 - (void)advancedKeyPressedVKey:(NSInteger)key
 {
 	[[RDPKeyboard getSharedRDPKeyboard] sendVirtualKeyCode:key];
-}
-
-- (void)advancedKeyPressedUnicode:(NSInteger)key
-{
-	[[RDPKeyboard getSharedRDPKeyboard] sendUnicode:key];
 }
 
 #pragma mark - RDP keyboard handler
@@ -626,7 +645,7 @@
 	if (_advanced_keyboard_view)
 		return;
 
-	CGRect rect = CGRectMake(0, 0, [[self view] bounds].size.width, ADVANCED_KEYBOARD_HEIGHT);
+	CGRect rect = CGRectMake(0, 0, [[self view] bounds].size.width, [self advancedKeyboardHeight]);
 	_advanced_keyboard_view = [[AdvancedKeyboardView alloc] initWithFrame:rect delegate:self];
 
 	[_dummy_textfield setInputView:_advanced_keyboard_view];
@@ -746,7 +765,23 @@
 
 - (void)keyboardWillShow:(NSNotification *)notification
 {
-	(void)notification;
+	// remember the system keyboard's height (to show advanced keyboard view)
+	if (!_advanced_keyboard_view)
+	{
+		CGRect frame =
+		    [[[notification userInfo] objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
+		CGFloat height = frame.size.height - [_keyboard_toolbar bounds].size.height;
+        
+        // 100.0 is heuristic value.
+		if (height >= 100.0)
+		{
+			if ([self isLandscape])
+				_keyboard_height_landscape = height;
+			else
+				_keyboard_height_portrait = height;
+		}
+	}
+
 	[self centerSessionViewInViewport];
 }
 
@@ -1266,6 +1301,22 @@
 - (BOOL)isKeyboardActive
 {
 	return [_dummy_textfield isFirstResponder];
+}
+
+- (BOOL)isLandscape
+{
+	CGSize size = [[self view] bounds].size;
+	return size.width > size.height;
+}
+
+- (CGFloat)advancedKeyboardHeight
+{
+	// before the system keyboard was shown in this orientation, use a typical height
+	if ([self isLandscape])
+		return (_keyboard_height_landscape > 0.0) ? _keyboard_height_landscape
+		                                          : (IsPad() ? 400.0 : 200.0);
+	return (_keyboard_height_portrait > 0.0) ? _keyboard_height_portrait
+	                                         : (IsPad() ? 320.0 : 290.0);
 }
 
 @end

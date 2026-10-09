@@ -14,20 +14,20 @@ void RDPApplyKeyCapColors(UIButtonConfiguration *config, BOOL latched, BOOL pres
 UIVisualEffectView *RDPCreateGlassCapsuleView(void)
 {
 	UIVisualEffect *effect;
-    if (@available(iOS 26.0, *))
-    {
-        effect = [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
-    }
+	if (@available(iOS 26.0, *))
+	{
+		effect = [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
+	}
 	else
-    {
-        effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterial];
-    }
+	{
+		effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterial];
+	}
 
 	UIVisualEffectView *view = [[[UIVisualEffectView alloc] initWithEffect:effect] autorelease];
 	if (@available(iOS 26.0, *))
-    {
-        [view setCornerConfiguration:[UICornerConfiguration capsuleConfiguration]];
-    }
+	{
+		[view setCornerConfiguration:[UICornerConfiguration capsuleConfiguration]];
+	}
 	else
 	{
 		[view setClipsToBounds:YES];
@@ -39,9 +39,9 @@ UIVisualEffectView *RDPCreateGlassCapsuleView(void)
 void RDPUpdateGlassCapsuleCorners(UIVisualEffectView *view)
 {
 	if (@available(iOS 26.0, *))
-    {
-        return;
-    }
+	{
+		return;
+	}
 
 	CGSize size = [view bounds].size;
 	[[view layer] setCornerRadius:MIN(size.width, size.height) * 0.5];
@@ -51,8 +51,8 @@ UIImage *RDPWindowsLogoImage(CGFloat size)
 {
 	UIGraphicsImageRenderer *renderer =
 	    [[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(size, size)] autorelease];
-    
-    // draw 4 square like windows logo
+
+	// draw 4 square like windows logo
 	UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
 		const CGFloat gap = MAX(1.0, round(size * 0.08));
 		const CGFloat tile = (size - gap) * 0.5;
@@ -68,24 +68,23 @@ UIImage *RDPWindowsLogoImage(CGFloat size)
 UIButton *RDPCreateKeyButton(NSString *title, UIImage *image)
 {
 	UIButtonConfiguration *config = [UIButtonConfiguration grayButtonConfiguration];
-    [config setCornerStyle:UIButtonConfigurationCornerStyleMedium];
-    [config setContentInsets:NSDirectionalEdgeInsetsMake(4.0, 4.0, 4.0, 4.0)];
+	[config setCornerStyle:UIButtonConfigurationCornerStyleMedium];
+	[config setContentInsets:NSDirectionalEdgeInsetsMake(4.0, 4.0, 4.0, 4.0)];
 
-    if (title != nil)
-    {
-        [config setTitle:title];
-        [config setTitleLineBreakMode:NSLineBreakByClipping];
-    }
-    else if (image != nil)
-    {
-        [config setImage:image];
-    }
-    else
-    {
-        [config release];
-        return nil;
-    }
-    
+	if (title != nil)
+	{
+		[config setTitle:title];
+		[config setTitleLineBreakMode:NSLineBreakByClipping];
+	}
+	else if (image != nil)
+	{
+		[config setImage:image];
+	}
+	else
+	{
+		return nil;
+	}
+
 	RDPApplyKeyCapColors(config, NO, NO);
 
 	UIButton *btn = [UIButton buttonWithConfiguration:config primaryAction:nil];
@@ -98,19 +97,33 @@ UIButton *RDPCreateKeyButton(NSString *title, UIImage *image)
 	return btn;
 }
 
+UIButton *RDPCreateTabButton(NSString *title)
+{
+	UIButton *btn = RDPCreateKeyButton(title, nil);
+	if (btn == nil)
+		return nil;
+
+	// set style
+	UIButtonConfiguration *config = [[[btn configuration] copy] autorelease];
+	[config setCornerStyle:UIButtonConfigurationCornerStyleCapsule];
+
+	[btn setConfiguration:config];
+	return btn;
+}
+
 void RDPApplyKeyCapColors(UIButtonConfiguration *config, BOOL latched, BOOL pressed)
 {
-    UIColor *background;
-    if (latched)
-        background = pressed ? [UIColor secondaryLabelColor] : [UIColor labelColor];
-    else
-        background = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-            if ([traits userInterfaceStyle] == UIUserInterfaceStyleDark)
-                return pressed ? [UIColor systemGray2Color] : [UIColor systemGray3Color];
-            return pressed ? [UIColor systemGray4Color] : [UIColor whiteColor];
-        }];
+	UIColor *background;
+	if (latched)
+		background = pressed ? [UIColor secondaryLabelColor] : [UIColor labelColor];
+	else
+		background = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
+			if ([traits userInterfaceStyle] == UIUserInterfaceStyleDark)
+				return pressed ? [UIColor systemGray2Color] : [UIColor systemGray3Color];
+			return pressed ? [UIColor systemGray4Color] : [UIColor whiteColor];
+		}];
 
-    [[config background] setBackgroundColor:background];
-    [config
-        setBaseForegroundColor:latched ? [UIColor systemBackgroundColor] : [UIColor labelColor]];
+	[[config background] setBackgroundColor:background];
+	[config
+	    setBaseForegroundColor:latched ? [UIColor systemBackgroundColor] : [UIColor labelColor]];
 }
