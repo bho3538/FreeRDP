@@ -452,9 +452,8 @@
 	_last_session_viewport_size = CGSizeZero;
 	[self fitSessionViewToViewport];
 
-	// show/hide toolbar
-	[_session
-	    setToolbarVisible:![[NSUserDefaults standardUserDefaults] boolForKey:@"ui.hide_tool_bar"]];
+	// show toolbar
+	[_session setToolbarVisible:YES];
 	[self showSessionToolbar:[_session toolbarVisible]];
 }
 
@@ -737,19 +736,6 @@
 		[_dummy_textfield resignFirstResponder];
 }
 
-- (IBAction)toggleExtKeyboard:(id)sender
-{
-	// if the sys kb is shown but not the advanced kb then toggle the advanced kb
-	if ([self isKeyboardActive] && !_advanced_keyboard_view)
-		[self toggleKeyboardWhenOtherVisible:nil];
-	else
-	{
-		if (![self isKeyboardActive])
-			[self showAdvancedKeyboardAnimated];
-		[self toggleKeyboard:nil];
-	}
-}
-
 - (IBAction)disconnectSession:(id)sender
 {
 	[_session disconnect];
@@ -771,8 +757,8 @@
 		CGRect frame =
 		    [[[notification userInfo] objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
 		CGFloat height = frame.size.height - [_keyboard_toolbar bounds].size.height;
-        
-        // 100.0 is heuristic value.
+
+		// 100.0 is heuristic value.
 		if (height >= 100.0)
 		{
 			if ([self isLandscape])
