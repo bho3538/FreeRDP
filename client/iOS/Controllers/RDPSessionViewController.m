@@ -23,7 +23,6 @@
 
 @interface RDPSessionViewController (Private)
 - (void)showSessionToolbar:(BOOL)show;
-- (UIToolbar *)keyboardToolbar;
 - (void)initGestureRecognizers;
 - (void)suspendSession;
 - (void)fitSessionViewToViewport;
@@ -84,7 +83,7 @@
 	[(RDPSessionToolbar *)_session_toolbar setPassthroughView:_session_scrollview];
 
 	// init keyboard toolbar
-	_keyboard_toolbar = [[self keyboardToolbar] retain];
+	_keyboard_toolbar = [[RDPKeyboardToolbarView alloc] initWithTarget:self];
 	[_dummy_textfield setInputAccessoryView:_keyboard_toolbar];
 
 	// init gesture recognizers
@@ -122,11 +121,6 @@
 		[self fitSessionViewToViewport];
 	else
 		[self centerSessionViewInViewport];
-
-	// set toolbar 'dummy item' width (for margin)
-	const CGFloat margin = [self systemMinimumLayoutMargins].leading;
-	[[[_keyboard_toolbar items] firstObject] setWidth:margin];
-	[[[_keyboard_toolbar items] lastObject] setWidth:margin];
 }
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
@@ -318,33 +312,7 @@
 
 - (void)modifiersChangedForKeyboard:(RDPKeyboard *)keyboard
 {
-	UIBarButtonItem *curItem;
-
-	// index 0 is empty space, index 1 is 'esc' button
-	int objectIdx = 1;
-	if (IsPad())
-	{
-		objectIdx += 2;
-		curItem = (UIBarButtonItem *)[[_keyboard_toolbar items] objectAtIndex:objectIdx];
-		[curItem setStyle:[keyboard shiftPressed] ? UIBarButtonItemStyleDone
-		                                          : UIBarButtonItemStylePlain];
-	}
-
-	// ctrl button
-	objectIdx += 2;
-	curItem = (UIBarButtonItem *)[[_keyboard_toolbar items] objectAtIndex:objectIdx];
-	[curItem
-	    setStyle:[keyboard ctrlPressed] ? UIBarButtonItemStyleDone : UIBarButtonItemStylePlain];
-
-	// win button
-	objectIdx += 2;
-	curItem = (UIBarButtonItem *)[[_keyboard_toolbar items] objectAtIndex:objectIdx];
-	[curItem setStyle:[keyboard winPressed] ? UIBarButtonItemStyleDone : UIBarButtonItemStylePlain];
-
-	// alt button
-	objectIdx += 2;
-	curItem = (UIBarButtonItem *)[[_keyboard_toolbar items] objectAtIndex:objectIdx];
-	[curItem setStyle:[keyboard altPressed] ? UIBarButtonItemStyleDone : UIBarButtonItemStylePlain];
+	[_keyboard_toolbar updateModifiersWithKeyboard:keyboard];
 }
 
 #pragma mark -
@@ -663,6 +631,7 @@
 
 	[_dummy_textfield setInputView:_advanced_keyboard_view];
 	[_dummy_textfield reloadInputViews];
+	[_keyboard_toolbar setExtendedKeyboardActive:YES];
 }
 
 - (void)destroyAdvancedKeyboard
@@ -674,6 +643,7 @@
 	[_dummy_textfield setInputView:nil];
 	[_advanced_keyboard_view autorelease];
 	_advanced_keyboard_view = nil;
+	[_keyboard_toolbar setExtendedKeyboardActive:NO];
 }
 
 // toggle advanced keyboard (not keyboard)
@@ -712,9 +682,24 @@
 	[[RDPKeyboard getSharedRDPKeyboard] toggleAltKey];
 }
 
+- (IBAction)toggleAltGrKey:(id)sender
+{
+	[[RDPKeyboard getSharedRDPKeyboard] toggleAltGrKey];
+}
+
 - (IBAction)pressEscKey:(id)sender
 {
 	[[RDPKeyboard getSharedRDPKeyboard] sendEscapeKeyStroke];
+}
+
+- (IBAction)pressDeleteKey:(id)sender
+{
+	[[RDPKeyboard getSharedRDPKeyboard] sendDeleteKeyStroke];
+}
+
+- (IBAction)pressTabKey:(id)sender
+{
+	[[RDPKeyboard getSharedRDPKeyboard] sendTabKeyStroke];
 }
 
 #pragma mark -
@@ -1064,72 +1049,6 @@
 		                 completion:nil];
 		_session_toolbar_visible = NO;
 	}
-}
-
-- (UIToolbar *)keyboardToolbar
-{
-	UIToolbar *keyboard_toolbar = [[[UIToolbar alloc] initWithFrame:CGRectNull] autorelease];
-	[keyboard_toolbar setBarStyle:UIBarStyleBlack];
-
-	UIBarButtonItem *esc_btn =
-	    [[[UIBarButtonItem alloc] initWithTitle:@"Esc"
-	                                      style:UIBarButtonItemStylePlain
-	                                     target:self
-	                                     action:@selector(pressEscKey:)] autorelease];
-	UIImage *win_icon =
-	    [UIImage imageWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"toolbar_icon_win"
-	                                                                     ofType:@"png"]];
-	UIBarButtonItem *win_btn =
-	    [[[UIBarButtonItem alloc] initWithImage:win_icon
-	                                      style:UIBarButtonItemStylePlain
-	                                     target:self
-	                                     action:@selector(toggleWinKey:)] autorelease];
-	UIBarButtonItem *ctrl_btn =
-	    [[[UIBarButtonItem alloc] initWithTitle:@"Ctrl"
-	                                      style:UIBarButtonItemStylePlain
-	                                     target:self
-	                                     action:@selector(toggleCtrlKey:)] autorelease];
-	UIBarButtonItem *alt_btn =
-	    [[[UIBarButtonItem alloc] initWithTitle:@"Alt"
-	                                      style:UIBarButtonItemStylePlain
-	                                     target:self
-	                                     action:@selector(toggleAltKey:)] autorelease];
-	UIBarButtonItem *ext_btn = [[[UIBarButtonItem alloc]
-	    initWithTitle:@"Ext"
-	            style:UIBarButtonItemStylePlain
-	           target:self
-	           action:@selector(toggleKeyboardWhenOtherVisible:)] autorelease];
-	UIBarButtonItem *flex_spacer =
-	    [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
-	                                                   target:nil
-	                                                   action:nil] autorelease];
-	// edge spacers, sized to the system margins in viewDidLayoutSubviews
-	UIBarButtonItem *leading_spacer = [UIBarButtonItem fixedSpaceItemOfWidth:0];
-	UIBarButtonItem *trailing_spacer = [UIBarButtonItem fixedSpaceItemOfWidth:0];
-
-	// iPad gets a shift button, iphone doesn't (there's just not enough space ...)
-	NSArray *items;
-	if (IsPad())
-	{
-		UIBarButtonItem *shift_btn =
-		    [[[UIBarButtonItem alloc] initWithTitle:@"Shift"
-		                                      style:UIBarButtonItemStylePlain
-		                                     target:self
-		                                     action:@selector(toggleShiftKey:)] autorelease];
-		items = [NSArray arrayWithObjects:leading_spacer, esc_btn, flex_spacer, shift_btn,
-		                                  flex_spacer, ctrl_btn, flex_spacer, win_btn, flex_spacer,
-		                                  alt_btn, flex_spacer, ext_btn, trailing_spacer, nil];
-	}
-	else
-	{
-		items = [NSArray arrayWithObjects:leading_spacer, esc_btn, flex_spacer, ctrl_btn,
-		                                  flex_spacer, win_btn, flex_spacer, alt_btn, flex_spacer,
-		                                  ext_btn, trailing_spacer, nil];
-	}
-
-	[keyboard_toolbar setItems:items];
-	[keyboard_toolbar sizeToFit];
-	return keyboard_toolbar;
 }
 
 - (void)initGestureRecognizers

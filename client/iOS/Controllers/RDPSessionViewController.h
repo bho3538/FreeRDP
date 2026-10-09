@@ -14,6 +14,7 @@
 #import "RDPSessionView.h"
 #import "RDPCursor.h"
 #import "AdvancedKeyboardView.h"
+#import "RDPKeyboardToolbarView.h"
 
 @interface RDPSessionViewController
     : UIViewController <RDPSessionDelegate, AdvancedKeyboardDelegate, RDPKeyboardDelegate,
@@ -40,7 +41,7 @@
 	IBOutlet UIButton *_cancel_connect_button;
 
 	// extended keyboard toolbar
-	UIToolbar *_keyboard_toolbar;
+	RDPKeyboardToolbarView *_keyboard_toolbar;
 
 	// rdp session
 	RDPSession *_session;
