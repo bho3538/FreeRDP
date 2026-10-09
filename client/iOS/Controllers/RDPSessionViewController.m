@@ -1087,7 +1087,7 @@
 	UILongPressGestureRecognizer *longPressRecognizer = [[[UILongPressGestureRecognizer alloc]
 	    initWithTarget:self
 	            action:@selector(handleLongPress:)] autorelease];
-	[longPressRecognizer setMinimumPressDuration:0.45];
+	[longPressRecognizer setMinimumPressDuration:0.3];
 	[longPressRecognizer setAllowableMovement:12.0];
 	[longPressRecognizer setDelegate:self];
 
@@ -1127,7 +1127,7 @@
 	    initWithTarget:self
 	            action:@selector(handleDoubleLongPress:)] autorelease];
 	[doubleLongPressRecognizer setNumberOfTouchesRequired:2];
-	[doubleLongPressRecognizer setMinimumPressDuration:0.5];
+	[doubleLongPressRecognizer setMinimumPressDuration:0.3];
 
 	// 3 finger, single tap gesture for showing/hiding the toolbar
 	UITapGestureRecognizer *single3FingersTapRecognizer = [[[UITapGestureRecognizer alloc]
