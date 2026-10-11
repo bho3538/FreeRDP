@@ -34,6 +34,9 @@
 	// dummy text field used to display the keyboard
 	IBOutlet UITextField *_dummy_textfield;
 
+	// dummy text field that has already been sent to the remote session
+	NSString *_sent_text;
+
 	// connecting view and the controls within that view
 	IBOutlet UIView *_connecting_view;
 	IBOutlet UILabel *_lbl_connecting;

@@ -175,7 +175,7 @@
 	[self sendVirtualKey:keyCode up:NO];
 	[self sendVirtualKey:keyCode up:YES];
 
-    // release modifier key
+	// release modifier key
 	[self reset];
 }
 

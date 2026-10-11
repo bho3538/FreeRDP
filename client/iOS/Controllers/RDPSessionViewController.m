@@ -38,6 +38,24 @@
 - (BOOL)isKeyboardActive;
 - (BOOL)isLandscape;
 - (CGFloat)advancedKeyboardHeight;
+- (void)resetTextInput;
+- (void)commitTextInput;
+@end
+
+// dummy text field
+@interface RDPSessionTextField : UITextField
+@end
+
+@implementation RDPSessionTextField
+
+- (void)deleteBackward
+{
+	// send backspace to remote session if dummy text field is empty.
+	if ([[self text] length] == 0)
+		[[RDPKeyboard getSharedRDPKeyboard] sendBackspaceKeyStroke];
+	[super deleteBackward];
+}
+
 @end
 
 @implementation RDPSessionViewController
@@ -56,6 +74,7 @@
 		_session_initilized = NO;
 
 		_advanced_keyboard_view = nil;
+		_sent_text = [@"" retain];
 		_last_session_viewport_size = CGSizeZero;
 
 		_session_toolbar_visible = NO;
@@ -86,6 +105,16 @@
 	// init keyboard toolbar
 	_keyboard_toolbar = [[RDPKeyboardToolbarView alloc] initWithTarget:self];
 	[_dummy_textfield setInputAccessoryView:_keyboard_toolbar];
+
+	// the text field must not alter when typed
+	[_dummy_textfield setAutocapitalizationType:UITextAutocapitalizationTypeNone];
+	[_dummy_textfield setSpellCheckingType:UITextSpellCheckingTypeNo];
+	[_dummy_textfield setSmartQuotesType:UITextSmartQuotesTypeNo];
+	[_dummy_textfield setSmartDashesType:UITextSmartDashesTypeNo];
+	[_dummy_textfield setSmartInsertDeleteType:UITextSmartInsertDeleteTypeNo];
+	[_dummy_textfield addTarget:self
+	                     action:@selector(textInputChanged:)
+	           forControlEvents:UIControlEventEditingChanged];
 
 	// the undo/redo/paste shortcuts of the iPad keyboard act on the hidden text field, not on
 	// the remote session, so don't show them
@@ -256,6 +285,7 @@
 
 	[_advanced_keyboard_view release];
 	[_keyboard_toolbar release];
+	[_sent_text release];
 	[_session release];
 	[super dealloc];
 }
@@ -295,35 +325,90 @@
 	return YES;
 }
 
-- (BOOL)textField:(UITextField *)textField
-    shouldChangeCharactersInRange:(NSRange)range
-                replacementString:(NSString *)string
+- (void)textFieldDidEndEditing:(UITextField *)textField
 {
-	if ([string length] > 0)
-	{
-		for (int i = 0; i < [string length]; i++)
-		{
-			unichar curChar = [string characterAtIndex:i];
+	[self commitTextInput];
+}
 
-			// special handling for return/enter key
-			if (curChar == '\n')
-				[[RDPKeyboard getSharedRDPKeyboard] sendEnterKeyStroke];
-			else
-				[[RDPKeyboard getSharedRDPKeyboard] sendUnicode:curChar];
+- (BOOL)textFieldShouldReturn:(UITextField *)textField
+{
+	[self commitTextInput];
+	[[RDPKeyboard getSharedRDPKeyboard] sendEnterKeyStroke];
+
+	// turn off default action
+	return NO;
+}
+
+// sends what changed in the text field since the last time
+- (void)textInputChanged:(UITextField *)textField
+{
+	// send marked text (chinese, japanese) only once committed, sending every change
+	// arrives out of order on the server
+	if ([textField markedTextRange] != nil)
+		return;
+
+	// a letter typed with a toolbar modifier is a shortcut (e.g. ctrl+a). read it before
+	// sending, which releases the modifiers
+	RDPKeyboard *keyboard = [RDPKeyboard getSharedRDPKeyboard];
+	BOOL modifierPressed = [keyboard ctrlPressed] || [keyboard altPressed] ||
+	                       [keyboard winPressed] || [keyboard altGrPressed];
+
+	NSString *text = [textField text] != nil ? [textField text] : @"";
+	NSUInteger length = MIN([text length], [_sent_text length]);
+	NSUInteger common = 0;
+
+	while (common < length)
+	{
+		if ([text characterAtIndex:common] != [_sent_text characterAtIndex:common])
+		{
+			break;
 		}
+		common++;
+	}
+
+	// don't split a multi code point character (e.g. emoji)
+	if (common < [_sent_text length])
+		common = MIN(common, [_sent_text rangeOfComposedCharacterSequenceAtIndex:common].location);
+	if (common < [text length])
+		common = MIN(common, [text rangeOfComposedCharacterSequenceAtIndex:common].location);
+
+	for (NSUInteger i = common; i < [_sent_text length];)
+	{
+		NSRange range = [_sent_text rangeOfComposedCharacterSequenceAtIndex:i];
+		[keyboard sendBackspaceKeyStroke];
+		i = NSMaxRange(range);
+	}
+
+	for (NSUInteger i = common; i < [text length]; i++)
+	{
+		[keyboard sendUnicode:[text characterAtIndex:i]];
+	}
+
+	BOOL isLastCharLetter = NO;
+	if ([text length] > 0)
+	{
+		isLastCharLetter = [[NSCharacterSet letterCharacterSet]
+		    characterIsMember:[text characterAtIndex:[text length] - 1]];
+	}
+
+	// some keyboard (korean) composes with the letters before the cursor
+	// keep it
+	if (modifierPressed || !isLastCharLetter)
+	{
+		[self resetTextInput];
 	}
 	else
 	{
-		[[RDPKeyboard getSharedRDPKeyboard] sendBackspaceKeyStroke];
+		[_sent_text release];
+		_sent_text = [text copy];
 	}
-
-	return NO;
 }
 
 #pragma mark -
 #pragma mark AdvancedKeyboardDelegate functions
 - (void)advancedKeyPressedVKey:(NSInteger)key
 {
+	[self commitTextInput];
 	[[RDPKeyboard getSharedRDPKeyboard] sendVirtualKeyCode:key];
 }
 
@@ -707,16 +792,19 @@
 
 - (IBAction)pressEscKey:(id)sender
 {
+	[self commitTextInput];
 	[[RDPKeyboard getSharedRDPKeyboard] sendEscapeKeyStroke];
 }
 
 - (IBAction)pressDeleteKey:(id)sender
 {
+	[self commitTextInput];
 	[[RDPKeyboard getSharedRDPKeyboard] sendDeleteKeyStroke];
 }
 
 - (IBAction)pressTabKey:(id)sender
 {
+	[self commitTextInput];
 	[[RDPKeyboard getSharedRDPKeyboard] sendTabKeyStroke];
 }
 
@@ -1275,6 +1363,8 @@
 
 - (void)sendMouseButtonEvent:(int)event
 {
+	// typed text can not be changed anymore.
+	[self commitTextInput];
 	CGPoint position = [self currentCursorViewPosition];
 	[_session sendInputEvent:[self eventDescriptorForMouseEvent:event position:position]];
 }
@@ -1287,6 +1377,24 @@
 - (BOOL)isKeyboardActive
 {
 	return [_dummy_textfield isFirstResponder];
+}
+
+- (void)resetTextInput
+{
+	[_dummy_textfield setText:@""];
+	[_sent_text release];
+	_sent_text = [@"" retain];
+}
+
+- (void)commitTextInput
+{
+	if ([[_dummy_textfield text] length] == 0)
+		return;
+
+	// send the text being composed as it is
+	[_dummy_textfield unmarkText];
+	[self textInputChanged:_dummy_textfield];
+	[self resetTextInput];
 }
 
 - (BOOL)isLandscape
