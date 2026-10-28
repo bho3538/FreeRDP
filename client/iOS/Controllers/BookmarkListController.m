@@ -26,6 +26,7 @@
 @interface BookmarkListController (Private)
 #pragma mark misc functions
 - (void)performSearch:(NSString *)searchText;
+- (void)askToSaveTemporaryBookmark;
 #pragma mark Persisting bookmarks
 - (void)scheduleWriteBookmarksToDataStore;
 - (void)writeBookmarksToDataStore;
@@ -118,6 +119,15 @@
 
 	// to reflect any bookmark changes - reload table
 	[_tableView reloadData];
+}
+
+- (void)viewDidAppear:(BOOL)animated
+{
+	[super viewDidAppear:animated];
+
+	// a quick connect session ended while its view was on top
+	if (_temporary_bookmark)
+		[self askToSaveTemporaryBookmark];
 }
 
 // recalc safe area for modern device
@@ -724,39 +734,51 @@
 	// (this happens if the session is created using the quick connect feature)
 	if (![_manual_bookmarks containsObject:[session bookmark]])
 	{
-		// retain the bookmark in case we want to save it later
-		_temporary_bookmark = [[session bookmark] retain];
+		if (_temporary_bookmark)
+			[_temporary_bookmark release];
 
-		// ask the user if he wants to save the bookmark
-		NSString *title =
-		    NSLocalizedString(@"Save Connection Settings?", @"Save connection settings title");
-		NSString *message = NSLocalizedString(
-		    @"Your Connection Settings have not been saved. Do you want to save them?",
-		    @"Save connection settings message");
-		UIAlertController *alert =
-		    [UIAlertController alertControllerWithTitle:title
-		                                        message:message
-		                                 preferredStyle:UIAlertControllerStyleAlert];
-		[alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"No", @"No Button")
-		                                          style:UIAlertActionStyleCancel
-		                                        handler:nil]];
-		[alert addAction:[UIAlertAction
-		                     actionWithTitle:NSLocalizedString(@"Yes", @"Yes Button")
-		                               style:UIAlertActionStyleDefault
-		                             handler:^(UIAlertAction *action) {
-			                             if (_temporary_bookmark)
-			                             {
-				                             [_manual_bookmarks addObject:_temporary_bookmark];
-				                             [_tableView
-				                                   reloadSections:[NSIndexSet indexSetWithIndex:
-				                                                                  SECTION_BOOKMARKS]
-				                                 withRowAnimation:UITableViewRowAnimationNone];
-				                             [_temporary_bookmark autorelease];
-				                             _temporary_bookmark = nil;
-			                             }
-		                             }]];
-		[self presentViewController:alert animated:YES completion:nil];
+		// retain the bookmark in case we want to save it later (in viewDidAppear)
+		// (the session view is still on top here. Presenting the alert now blocks it from being
+		// popped and leaves the user stuck in the ended session.)
+		_temporary_bookmark = [[session bookmark] retain];
 	}
+}
+
+- (void)askToSaveTemporaryBookmark
+{
+	NSString *title =
+	    NSLocalizedString(@"Save Connection Settings?", @"Save connection settings title");
+	NSString *message = NSLocalizedString(
+	    @"Your Connection Settings have not been saved. Do you want to save them?",
+	    @"Save connection settings message");
+	UIAlertController *alert =
+	    [UIAlertController alertControllerWithTitle:title
+	                                        message:message
+	                                 preferredStyle:UIAlertControllerStyleAlert];
+	[alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"No", @"No Button")
+	                                          style:UIAlertActionStyleCancel
+	                                        handler:^(UIAlertAction *action) {
+		                                        [_temporary_bookmark autorelease];
+		                                        _temporary_bookmark = nil;
+	                                        }]];
+	[alert
+	    addAction:[UIAlertAction
+	                  actionWithTitle:NSLocalizedString(@"Yes", @"Yes Button")
+	                            style:UIAlertActionStyleDefault
+	                          handler:^(UIAlertAction *action) {
+		                          if (_temporary_bookmark)
+		                          {
+			                          [_manual_bookmarks addObject:_temporary_bookmark];
+			                          [_tableView
+			                                reloadSections:[NSIndexSet
+			                                                   indexSetWithIndex:SECTION_BOOKMARKS]
+			                              withRowAnimation:UITableViewRowAnimationNone];
+			                          [self scheduleWriteManualBookmarksToDataStore];
+			                          [_temporary_bookmark autorelease];
+			                          _temporary_bookmark = nil;
+		                          }
+	                          }]];
+	[self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)sessionFailedToConnect:(NSNotification *)notification
