@@ -386,6 +386,16 @@ out_free:
 		ios_events_send([self mfi], eventDescriptor);
 }
 
+- (void)sendClipboardHasText:(BOOL)hasText
+{
+	// not sendInputEvent: the first check runs in sessionDidConnect, before the state is
+	// connected; the event waits in the pipe until the run loop starts
+	ios_events_send([self mfi],
+	                [NSDictionary dictionaryWithObjectsAndKeys:@"clipboard", @"type",
+	                                                           [NSNumber numberWithBool:hasText],
+	                                                           @"has_text", nil]);
+}
+
 #pragma mark -
 #pragma mark Server events (main thread)
 
@@ -559,6 +569,12 @@ out_free:
 {
 	if ([[self delegate] respondsToSelector:@selector(session:verifyCertificateWithParams:)])
 		[[self delegate] session:self verifyCertificateWithParams:params];
+}
+
+- (void)sessionRequestsClipboardTextWithParams:(NSMutableDictionary *)params
+{
+	if ([[self delegate] respondsToSelector:@selector(session:requestsClipboardTextWithParams:)])
+		[[self delegate] session:self requestsClipboardTextWithParams:params];
 }
 
 @end

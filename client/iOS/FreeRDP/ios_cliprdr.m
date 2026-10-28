@@ -45,58 +45,25 @@ static void ios_cliprdr_free_formats(CLIPRDR_FORMAT *formats, UINT32 numFormats)
 
 UINT ios_cliprdr_send_client_format_list(CliprdrClientContext *cliprdr)
 {
-	UINT rc = ERROR_INTERNAL_ERROR;
-	UINT32 formatId;
-	UINT32 numFormats;
-	UINT32 *pFormatIds;
-	const char *formatName;
-	CLIPRDR_FORMAT *formats;
+	CLIPRDR_FORMAT format = WINPR_C_ARRAY_INIT;
 	CLIPRDR_FORMAT_LIST formatList = WINPR_C_ARRAY_INIT;
 
-	if (!cliprdr)
+	if (!cliprdr || !cliprdr->ClientFormatList)
 		return ERROR_INVALID_PARAMETER;
 
 	mfContext *afc = (mfContext *)cliprdr->custom;
 
-	if (!afc || !afc->cliprdr)
+	if (!afc)
 		return ERROR_INVALID_PARAMETER;
 
-	pFormatIds = nullptr;
-	numFormats = ClipboardGetFormatIds(afc->clipboard, &pFormatIds);
-	formats = (CLIPRDR_FORMAT *)calloc(numFormats, sizeof(CLIPRDR_FORMAT));
-
-	if (!formats)
-		goto fail;
-
-	for (UINT32 index = 0; index < numFormats; index++)
-	{
-		formatId = pFormatIds[index];
-		formatName = ClipboardGetFormatName(afc->clipboard, formatId);
-		formats[index].formatId = formatId;
-		formats[index].formatName = nullptr;
-
-		if ((formatId > CF_MAX) && formatName)
-		{
-			formats[index].formatName = _strdup(formatName);
-
-			if (!formats[index].formatName)
-				goto fail;
-		}
-	}
-
+	// Only announce the text; it is read from the pasteboard when the server requests it, since
+	// reading another app's pasteboard can show the paste permission alert.
+	format.formatId = CF_UNICODETEXT;
 	formatList.common.msgFlags = 0;
-	formatList.numFormats = numFormats;
-	formatList.formats = formats;
+	formatList.numFormats = afc->clipboardHasText ? 1 : 0;
+	formatList.formats = &format;
 	formatList.common.msgType = CB_FORMAT_LIST;
-
-	if (!afc->cliprdr->ClientFormatList)
-		goto fail;
-
-	rc = afc->cliprdr->ClientFormatList(afc->cliprdr, &formatList);
-fail:
-	free(pFormatIds);
-	free(formats);
-	return rc;
+	return cliprdr->ClientFormatList(cliprdr, &formatList);
 }
 
 static UINT ios_cliprdr_send_client_format_data_request(CliprdrClientContext *cliprdr,
@@ -345,8 +312,8 @@ ios_cliprdr_server_format_data_request(CliprdrClientContext *cliprdr,
                                        const CLIPRDR_FORMAT_DATA_REQUEST *formatDataRequest)
 {
 	UINT rc;
-	BYTE *data;
-	UINT32 size;
+	BYTE *data = nullptr;
+	UINT32 size = 0;
 	UINT32 formatId;
 	CLIPRDR_FORMAT_DATA_RESPONSE response = WINPR_C_ARRAY_INIT;
 	mfContext *afc;
@@ -360,7 +327,23 @@ ios_cliprdr_server_format_data_request(CliprdrClientContext *cliprdr,
 		return ERROR_INVALID_PARAMETER;
 
 	formatId = formatDataRequest->requestedFormatId;
-	data = (BYTE *)ClipboardGetData(afc->clipboard, formatId, &size);
+
+	if ((formatId == CF_UNICODETEXT) || (formatId == CF_TEXT) || (formatId == CF_OEMTEXT))
+	{
+		char *text = ios_ui_get_clipboard_text((rdpContext *)afc);
+
+		if (text)
+		{
+			ClipboardLock(afc->clipboard);
+			if (ClipboardSetData(afc->clipboard,
+			                     ClipboardRegisterFormat(afc->clipboard, "UTF8_STRING"), text,
+			                     (UINT32)strlen(text)))
+				data = (BYTE *)ClipboardGetData(afc->clipboard, formatId, &size);
+			ClipboardUnlock(afc->clipboard);
+			free(text);
+		}
+	}
+
 	response.common.msgFlags = CB_RESPONSE_OK;
 	response.common.dataLen = size;
 	response.requestedFormatData = data;
@@ -527,6 +510,7 @@ BOOL ios_cliprdr_uninit(mfContext *afc, CliprdrClientContext *cliprdr)
 
 	cliprdr->custom = nullptr;
 	afc->cliprdr = nullptr;
+	afc->clipboardSync = FALSE;
 	ios_cliprdr_free_formats(afc->serverFormats, afc->numServerFormats);
 	afc->serverFormats = nullptr;
 	afc->numServerFormats = 0;

@@ -494,6 +494,13 @@
 	                                           object:nil];
 	[self hardwareKeyboardChanged:nil];
 
+	// another app may have changed the clipboard while this one was inactive
+	[[NSNotificationCenter defaultCenter] addObserver:self
+	                                         selector:@selector(localClipboardChanged:)
+	                                             name:UIApplicationDidBecomeActiveNotification
+	                                           object:nil];
+	[self localClipboardChanged:nil];
+
 	// remove and release connecting view
 	[_connecting_indicator_view stopAnimating];
 	[_connecting_view removeFromSuperview];
@@ -617,7 +624,19 @@
 - (void)session:(RDPSession *)session didChangeRemoteClipboardText:(NSString *)text
 {
 	(void)session;
-	[[UIPasteboard generalPasteboard] setString:text];
+	UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+	[pasteboard setString:text];
+
+	// don't announce the server's own text back to it
+	_pasteboard_change_count = [pasteboard changeCount];
+}
+
+- (void)session:(RDPSession *)session requestsClipboardTextWithParams:(NSMutableDictionary *)params
+{
+	(void)session;
+	NSString *text = [[UIPasteboard generalPasteboard] string];
+	if (text)
+		[params setObject:text forKey:@"text"];
 }
 
 - (void)session:(RDPSession *)session requestsAuthenticationWithParams:(NSMutableDictionary *)params
@@ -915,6 +934,17 @@
 		[_session_view becomeFirstResponder];
 	else if (!connected)
 		[_session_view resignFirstResponder];
+}
+
+- (void)localClipboardChanged:(NSNotification *)notification
+{
+	// hasStrings does not show the paste permission alert, unlike reading the string
+	UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+	if ([pasteboard changeCount] == _pasteboard_change_count)
+		return;
+
+	_pasteboard_change_count = [pasteboard changeCount];
+	[_session sendClipboardHasText:[pasteboard hasStrings]];
 }
 
 #pragma mark -

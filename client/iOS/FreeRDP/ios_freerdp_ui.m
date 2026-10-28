@@ -231,6 +231,26 @@ void ios_ui_set_clipboard_text(rdpContext *context, const char *text, UINT32 siz
 	[string release];
 }
 
+char *ios_ui_get_clipboard_text(rdpContext *context)
+{
+	WINPR_ASSERT(context);
+
+	mfInfo *mfi = MFI_FROM_INSTANCE(context->instance);
+	WINPR_ASSERT(mfi);
+
+	// called on the cliprdr channel thread, which has no autorelease pool
+	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	NSMutableDictionary *params = [NSMutableDictionary dictionary];
+	[mfi->session performSelectorOnMainThread:@selector(sessionRequestsClipboardTextWithParams:)
+	                               withObject:params
+	                            waitUntilDone:YES];
+
+	NSString *text = [params objectForKey:@"text"];
+	char *result = text ? _strdup([text UTF8String]) : nullptr;
+	[pool release];
+	return result;
+}
+
 #pragma mark -
 #pragma mark Exported
 

@@ -30,6 +30,7 @@ typedef struct mf_context
 	rdpSettings *settings;
 
 	BOOL clipboardSync;
+	BOOL clipboardHasText;
 	wClipboard *clipboard;
 	UINT32 numServerFormats;
 	UINT32 requestedFormatId;
@@ -81,4 +82,3 @@ void ios_uninit_freerdp(void);
 freerdp *ios_freerdp_new(void);
 int ios_run_freerdp(freerdp *instance);
 void ios_freerdp_free(freerdp *instance);
-void ios_send_clipboard_data(void *context, const void *data, UINT32 size);

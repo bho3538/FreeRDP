@@ -500,23 +500,3 @@ size_t fwrite$UNIX2003(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	return fwrite(ptr, size, nmemb, stream);
 }
-
-void ios_send_clipboard_data(void *context, const void *data, UINT32 size)
-{
-	mfContext *afc = (mfContext *)context;
-	ClipboardLock(afc->clipboard);
-	UINT32 formatId = ClipboardRegisterFormat(afc->clipboard, "UTF8_STRING");
-	if (size)
-	{
-		if (!ClipboardSetData(afc->clipboard, formatId, data, size))
-		{
-			ClipboardUnlock(afc->clipboard);
-			WLog_ERR(TAG, "ClipboardSetData failed");
-			return;
-		}
-	}
-	else
-		ClipboardEmpty(afc->clipboard);
-	ClipboardUnlock(afc->clipboard);
-	ios_cliprdr_send_client_format_list(afc->cliprdr);
-}

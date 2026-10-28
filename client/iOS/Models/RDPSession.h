@@ -44,6 +44,7 @@ extern NSString *TSXSessionDidFailToConnectNotification;
 - (void)session:(RDPSession *)session
     requestsAuthenticationWithParams:(NSMutableDictionary *)params;
 - (void)session:(RDPSession *)session verifyCertificateWithParams:(NSMutableDictionary *)params;
+- (void)session:(RDPSession *)session requestsClipboardTextWithParams:(NSMutableDictionary *)params;
 
 @end
 
@@ -99,6 +100,9 @@ extern NSString *TSXSessionDidFailToConnectNotification;
 
 // send input event to the server
 - (void)sendInputEvent:(NSDictionary *)event;
+
+// tell the server whether the local clipboard has text
+- (void)sendClipboardHasText:(BOOL)hasText;
 
 // session needs a refresh of its view
 - (void)setNeedsDisplayInRectAsValue:(NSValue *)rect_value;
