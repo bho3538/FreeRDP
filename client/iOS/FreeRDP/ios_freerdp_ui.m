@@ -212,6 +212,26 @@ BOOL ios_ui_resize_window(rdpContext *context)
 }
 
 #pragma mark -
+#pragma mark Clipboard
+
+void ios_ui_set_clipboard_text(rdpContext *context, const char *text, UINT32 size)
+{
+	WINPR_ASSERT(context);
+
+	mfInfo *mfi = MFI_FROM_INSTANCE(context->instance);
+	WINPR_ASSERT(mfi);
+
+	NSString *string = [[NSString alloc] initWithBytes:text
+	                                            length:size
+	                                          encoding:NSUTF8StringEncoding];
+	if (string)
+		[mfi->session performSelectorOnMainThread:@selector(setRemoteClipboardText:)
+		                               withObject:string
+		                            waitUntilDone:NO];
+	[string release];
+}
+
+#pragma mark -
 #pragma mark Exported
 
 static void ios_create_bitmap_context(mfInfo *mfi)

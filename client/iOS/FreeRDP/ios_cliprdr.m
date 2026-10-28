@@ -30,6 +30,18 @@
 #include <freerdp/client/cliprdr.h>
 
 #include "ios_cliprdr.h"
+#include "ios_freerdp_ui.h"
+
+static void ios_cliprdr_free_formats(CLIPRDR_FORMAT *formats, UINT32 numFormats)
+{
+	if (!formats)
+		return;
+
+	for (UINT32 index = 0; index < numFormats; index++)
+		free(formats[index].formatName);
+
+	free(formats);
+}
 
 UINT ios_cliprdr_send_client_format_list(CliprdrClientContext *cliprdr)
 {
@@ -194,6 +206,20 @@ static UINT ios_cliprdr_server_capabilities(CliprdrClientContext *cliprdr,
 	return CHANNEL_RC_OK;
 }
 
+static UINT ios_cliprdr_send_client_format_list_response(CliprdrClientContext *cliprdr, BOOL status)
+{
+	CLIPRDR_FORMAT_LIST_RESPONSE formatListResponse = WINPR_C_ARRAY_INIT;
+
+	formatListResponse.common.msgType = CB_FORMAT_LIST_RESPONSE;
+	formatListResponse.common.msgFlags = status ? CB_RESPONSE_OK : CB_RESPONSE_FAIL;
+	formatListResponse.common.dataLen = 0;
+
+	if (!cliprdr || !cliprdr->ClientFormatListResponse)
+		return ERROR_INVALID_PARAMETER;
+
+	return cliprdr->ClientFormatListResponse(cliprdr, &formatListResponse);
+}
+
 /**
  * Function description
  *
@@ -214,18 +240,12 @@ static UINT ios_cliprdr_server_format_list(CliprdrClientContext *cliprdr,
 	if (!afc)
 		return ERROR_INVALID_PARAMETER;
 
-	if (afc->serverFormats)
-	{
-		for (UINT32 index = 0; index < afc->numServerFormats; index++)
-			free(afc->serverFormats[index].formatName);
-
-		free(afc->serverFormats);
-		afc->serverFormats = nullptr;
-		afc->numServerFormats = 0;
-	}
+	ios_cliprdr_free_formats(afc->serverFormats, afc->numServerFormats);
+	afc->serverFormats = nullptr;
+	afc->numServerFormats = 0;
 
 	if (formatList->numFormats < 1)
-		return CHANNEL_RC_OK;
+		return ios_cliprdr_send_client_format_list_response(cliprdr, TRUE);
 
 	afc->numServerFormats = formatList->numFormats;
 	afc->serverFormats = (CLIPRDR_FORMAT *)calloc(afc->numServerFormats, sizeof(CLIPRDR_FORMAT));
@@ -246,6 +266,9 @@ static UINT ios_cliprdr_server_format_list(CliprdrClientContext *cliprdr,
 				return CHANNEL_RC_NO_MEMORY;
 		}
 	}
+
+	if ((rc = ios_cliprdr_send_client_format_list_response(cliprdr, TRUE)) != CHANNEL_RC_OK)
+		return rc;
 
 	BOOL unicode = FALSE;
 	BOOL text = FALSE;
@@ -395,6 +418,13 @@ ios_cliprdr_server_format_data_response(CliprdrClientContext *cliprdr,
 		return ERROR_INTERNAL_ERROR;
 	}
 
+	// Returning an error ends the channel thread and with it the session.
+	if (formatDataResponse->common.msgFlags & CB_RESPONSE_FAIL)
+	{
+		(void)SetEvent(afc->clipboardRequestEvent);
+		return CHANNEL_RC_OK;
+	}
+
 	if (format->formatName)
 		formatId = ClipboardRegisterFormat(afc->clipboard, format->formatName);
 	else
@@ -404,7 +434,10 @@ ios_cliprdr_server_format_data_response(CliprdrClientContext *cliprdr,
 
 	ClipboardLock(afc->clipboard);
 	if (!ClipboardSetData(afc->clipboard, formatId, formatDataResponse->requestedFormatData, size))
+	{
+		ClipboardUnlock(afc->clipboard);
 		return ERROR_INTERNAL_ERROR;
+	}
 
 	(void)SetEvent(afc->clipboardRequestEvent);
 
@@ -412,15 +445,12 @@ ios_cliprdr_server_format_data_response(CliprdrClientContext *cliprdr,
 	{
 		formatId = ClipboardRegisterFormat(afc->clipboard, "UTF8_STRING");
 		data = (BYTE *)ClipboardGetData(afc->clipboard, formatId, &size);
-		size = (UINT32)strnlen((const char *)data, size);
-		if (afc->ServerCutText != nullptr)
+		if (data)
 		{
-			if (!afc->ServerCutText((rdpContext *)afc, (uint8_t *)data, size))
-			{
-				ClipboardUnlock(afc->clipboard);
-				return ERROR_INTERNAL_ERROR;
-			}
+			size = (UINT32)strnlen((const char *)data, size);
+			ios_ui_set_clipboard_text((rdpContext *)afc, (const char *)data, size);
 		}
+		free(data);
 	}
 	ClipboardUnlock(afc->clipboard);
 
@@ -497,6 +527,9 @@ BOOL ios_cliprdr_uninit(mfContext *afc, CliprdrClientContext *cliprdr)
 
 	cliprdr->custom = nullptr;
 	afc->cliprdr = nullptr;
+	ios_cliprdr_free_formats(afc->serverFormats, afc->numServerFormats);
+	afc->serverFormats = nullptr;
+	afc->numServerFormats = 0;
 	ClipboardDestroy(afc->clipboard);
 	(void)CloseHandle(afc->clipboardRequestEvent);
 	return TRUE;

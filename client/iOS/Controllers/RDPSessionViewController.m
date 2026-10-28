@@ -614,6 +614,12 @@
 	[_session_view setDefaultRemoteCursor];
 }
 
+- (void)session:(RDPSession *)session didChangeRemoteClipboardText:(NSString *)text
+{
+	(void)session;
+	[[UIPasteboard generalPasteboard] setString:text];
+}
+
 - (void)session:(RDPSession *)session requestsAuthenticationWithParams:(NSMutableDictionary *)params
 {
 	// custom view --> stock UIAlertController

@@ -28,4 +28,6 @@ DWORD ios_ui_verify_changed_certificate_ex(freerdp* instance, const char* host, 
                                            const char* old_subject, const char* old_issuer,
                                            const char* old_fingerprint, DWORD flags);
 
+void ios_ui_set_clipboard_text(rdpContext* context, const char* text, UINT32 size);
+
 void ios_allocate_display_buffer(mfInfo* mfi);

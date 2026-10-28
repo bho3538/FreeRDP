@@ -419,6 +419,12 @@ out_free:
 		[[self delegate] sessionDidSetDefaultRemoteCursor:self];
 }
 
+- (void)setRemoteClipboardText:(NSString *)text
+{
+	if ([[self delegate] respondsToSelector:@selector(session:didChangeRemoteClipboardText:)])
+		[[self delegate] session:self didChangeRemoteClipboardText:text];
+}
+
 #pragma mark -
 #pragma mark interface functions
 

@@ -38,6 +38,7 @@ extern NSString *TSXSessionDidFailToConnectNotification;
 - (void)session:(RDPSession *)session didMoveRemoteCursor:(CGPoint)position;
 - (void)sessionDidHideRemoteCursor:(RDPSession *)session;
 - (void)sessionDidSetDefaultRemoteCursor:(RDPSession *)session;
+- (void)session:(RDPSession *)session didChangeRemoteClipboardText:(NSString *)text;
 - (CGSize)sizeForFitScreenForSession:(RDPSession *)session;
 
 - (void)session:(RDPSession *)session
@@ -107,6 +108,9 @@ extern NSString *TSXSessionDidFailToConnectNotification;
 - (void)setRemoteCursorPositionValue:(NSValue *)positionValue;
 - (void)hideRemoteCursor;
 - (void)setDefaultRemoteCursor;
+
+// handle text copied on the server
+- (void)setRemoteClipboardText:(NSString *)text;
 
 // get a small session screenshot
 - (UIImage *)getScreenshotWithSize:(CGSize)size;
