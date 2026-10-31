@@ -29,6 +29,7 @@
 - (void)fitSessionViewToViewport;
 - (void)centerSessionViewInViewport;
 - (void)setKeyboardOverlap:(CGFloat)overlap;
+- (CGRect)sessionViewportFrame;
 - (CGPoint)remotePositionForSessionViewPosition:(CGPoint)position;
 - (CGPoint)sessionViewPositionForRemotePosition:(CGPoint)position;
 - (CGPoint)clampedSessionViewCursorPosition:(CGPoint)position;
@@ -149,6 +150,9 @@
 {
 	[super viewDidLoad];
 
+	// shown around the session when it avoids the screen edges
+	[[self view] setBackgroundColor:[UIColor blackColor]];
+
 	[_session_scrollview setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
 	[_session_scrollview setContentInset:UIEdgeInsetsZero];
 	[_session_scrollview setScrollIndicatorInsets:UIEdgeInsetsZero];
@@ -163,7 +167,7 @@
 {
 	[super viewDidLayoutSubviews];
 
-	CGRect viewportFrame = [[self view] bounds];
+	CGRect viewportFrame = [self sessionViewportFrame];
 	[_session_scrollview setFrame:viewportFrame];
 
 	CGSize viewportSize = [_session_scrollview bounds].size;
@@ -738,7 +742,7 @@
 - (CGSize)sizeForFitScreenForSession:(RDPSession *)session
 {
 	// set remote resolution that matches the on-screen viewport.
-	CGSize size = [self view].bounds.size;
+	CGSize size = [self sessionViewportFrame].size;
 	UIScreen *screen = [[self view] window] ? [[[self view] window] screen] : [UIScreen mainScreen];
 	CGFloat scale =
 	    [screen respondsToSelector:@selector(nativeScale)] ? [screen nativeScale] : [screen scale];
@@ -902,7 +906,8 @@
 	CGRect keyboardFrame =
 	    [[[notification userInfo] objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
 	keyboardFrame = [[self view] convertRect:keyboardFrame fromView:nil];
-	CGRect coveredArea = CGRectIntersection([[self view] bounds], keyboardFrame);
+
+	CGRect coveredArea = CGRectIntersection([_session_scrollview frame], keyboardFrame);
 
 	[self setKeyboardOverlap:CGRectGetHeight(coveredArea)];
 }
@@ -1143,6 +1148,16 @@
 
 #pragma mark -
 #pragma mark Helper functions
+
+- (CGRect)sessionViewportFrame
+{
+	// use full screen (ipad or 'Avoid Screen Edges' disabled)
+	if (IsPad() || ![[NSUserDefaults standardUserDefaults] boolForKey:@"ui.avoid_screen_edges"])
+		return [[self view] bounds];
+
+	// if 'Avoid Screen Edges' enabled (only for iphone)
+	return UIEdgeInsetsInsetRect([[self view] bounds], [[self view] safeAreaInsets]);
+}
 
 - (void)fitSessionViewToViewport
 {

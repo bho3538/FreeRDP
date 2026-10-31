@@ -32,6 +32,9 @@
    Screen resolution selector: Automatic resolution (full screen on iPad, reasonable size on iPhone) */
 "Automatic" = "Automatic";
 
+/* Avoid Screen Edges UI setting */
+"Avoid Screen Edges" = "Avoid Screen Edges";
+
 /* Bookmark data validation: label blank title. */
 "Bookmark labels cannot be blank" = "Bookmark labels cannot be blank";
 
