@@ -192,6 +192,7 @@
 	[_connection_history release];
 	[_active_sessions release];
 	[_manual_search_result release];
+	[_history_search_result release];
 	[_manual_bookmarks release];
 
 	[super dealloc];
@@ -397,6 +398,7 @@
 						            objectAtIndex:[self historyIndexFromIndexPath:indexPath]]];
 						[_history_search_result
 						    removeObjectAtIndex:[self historyIndexFromIndexPath:indexPath]];
+						[self scheduleWriteConnectionHistoryToDataStore];
 					}
 					else
 					{
@@ -852,6 +854,7 @@
 - (void)performSearch:(NSString *)searchText
 {
 	[_manual_search_result autorelease];
+	[_history_search_result autorelease];
 
 	if ([searchText length] > 0)
 	{
