@@ -30,6 +30,9 @@
 - (void)centerSessionViewInViewport;
 - (void)setKeyboardOverlap:(CGFloat)overlap;
 - (CGRect)sessionViewportFrame;
+- (void)showConnectingViewWithText:(NSString *)text;
+- (void)hideConnectingView;
+- (void)endBackgroundTask;
 - (CGPoint)remotePositionForSessionViewPosition:(CGPoint)position;
 - (CGPoint)sessionViewPositionForRemotePosition:(CGPoint)position;
 - (CGPoint)clampedSessionViewCursorPosition:(CGPoint)position;
@@ -443,10 +446,7 @@
 
 - (void)session:(RDPSession *)session didFailToConnect:(int)reason
 {
-	// remove and release connecting view
-	[_connecting_indicator_view stopAnimating];
-	[_connecting_view removeFromSuperview];
-	[_connecting_view autorelease];
+	[self hideConnectingView];
 
 	// return to bookmark list
 	[[self navigationController] popViewControllerAnimated:YES];
@@ -454,21 +454,22 @@
 
 - (void)sessionWillConnect:(RDPSession *)session
 {
-	// load connecting view
-	[[NSBundle mainBundle] loadNibNamed:@"RDPConnectingView" owner:self options:nil];
+	[self showConnectingViewWithText:NSLocalizedString(@"Connecting",
+	                                                   @"Connecting progress view - label")];
+}
 
-	// set strings
-	[_lbl_connecting setText:NSLocalizedString(@"Connecting", @"Connecting progress view - label")];
-	[_cancel_connect_button setTitle:NSLocalizedString(@"Cancel", @"Cancel Button")
-	                        forState:UIControlStateNormal];
+- (void)sessionWillReconnect:(RDPSession *)session
+{
+	(void)session;
+	[self showConnectingViewWithText:NSLocalizedString(
+	                                     @"Reconnecting",
+	                                     @"Connecting progress view - reconnect label")];
+}
 
-	// center view and give it round corners
-	[_connecting_view setCenter:[[self view] center]];
-	[[_connecting_view layer] setCornerRadius:10];
-
-	// display connecting view and start indicator
-	[[self view] addSubview:_connecting_view];
-	[_connecting_indicator_view startAnimating];
+- (void)sessionDidReconnect:(RDPSession *)session
+{
+	(void)session;
+	[self hideConnectingView];
 }
 
 - (void)sessionDidConnect:(RDPSession *)session
@@ -505,10 +506,18 @@
 	                                           object:nil];
 	[self localClipboardChanged:nil];
 
-	// remove and release connecting view
-	[_connecting_indicator_view stopAnimating];
-	[_connecting_view removeFromSuperview];
-	[_connecting_view autorelease];
+	// ios can suspends the app soon after it switched to the background and may then take its
+	// socket away
+	[[NSNotificationCenter defaultCenter] addObserver:self
+	                                         selector:@selector(applicationDidEnterBackground:)
+	                                             name:UIApplicationDidEnterBackgroundNotification
+	                                           object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self
+	                                         selector:@selector(applicationWillEnterForeground:)
+	                                             name:UIApplicationWillEnterForegroundNotification
+	                                           object:nil];
+
+	[self hideConnectingView];
 
 	// check if session settings changed ...
 	// The 2nd width check is to ignore changes in resolution settings due to the RDVH display bug
@@ -540,6 +549,9 @@
 
 - (void)sessionDidDisconnect:(RDPSession *)session
 {
+	[self hideConnectingView];
+	[self endBackgroundTask];
+
 	// return to bookmark list
 	[[self navigationController] popViewControllerAnimated:YES];
 }
@@ -952,6 +964,22 @@
 	[_session sendClipboardHasText:[pasteboard hasStrings]];
 }
 
+- (void)applicationDidEnterBackground:(NSNotification *)notification
+{
+	// keeps the connection alive for a short visit to another app
+	// after a longer one the session will reconnect
+	[self endBackgroundTask];
+	_background_task =
+	    [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+		    [self endBackgroundTask];
+	    }];
+}
+
+- (void)applicationWillEnterForeground:(NSNotification *)notification
+{
+	[self endBackgroundTask];
+}
+
 #pragma mark -
 #pragma mark Gesture handlers
 
@@ -1148,6 +1176,48 @@
 
 #pragma mark -
 #pragma mark Helper functions
+
+- (void)showConnectingViewWithText:(NSString *)text
+{
+	[self hideConnectingView];
+
+	// load connecting view
+	[[NSBundle mainBundle] loadNibNamed:@"RDPConnectingView" owner:self options:nil];
+
+	// set strings
+	[_lbl_connecting setText:text];
+	[_cancel_connect_button setTitle:NSLocalizedString(@"Cancel", @"Cancel Button")
+	                        forState:UIControlStateNormal];
+
+	// center view and give it round corners
+	[_connecting_view setCenter:[[self view] center]];
+	[[_connecting_view layer] setCornerRadius:10];
+
+	// display connecting view and start indicator
+	[[self view] addSubview:_connecting_view];
+	[_connecting_indicator_view startAnimating];
+}
+
+- (void)hideConnectingView
+{
+	if (!_connecting_view)
+		return;
+
+	// remove and release connecting view
+	[_connecting_indicator_view stopAnimating];
+	[_connecting_view removeFromSuperview];
+	[_connecting_view autorelease];
+	_connecting_view = nil;
+}
+
+- (void)endBackgroundTask
+{
+	if (_background_task == UIBackgroundTaskInvalid)
+		return;
+
+	[[UIApplication sharedApplication] endBackgroundTask:_background_task];
+	_background_task = UIBackgroundTaskInvalid;
+}
 
 - (CGRect)sessionViewportFrame
 {

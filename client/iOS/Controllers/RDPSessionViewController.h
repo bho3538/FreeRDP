@@ -70,6 +70,9 @@
 
 	// last local clipboard change already sent to the server
 	NSInteger _pasteboard_change_count;
+
+	// keeps the session running for a moment when app switched background
+	UIBackgroundTaskIdentifier _background_task;
 }
 
 - (id)initWithNibName:(NSString *)nibNameOrNil

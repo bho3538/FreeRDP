@@ -31,6 +31,8 @@ NSString *TSXSessionDidFailToConnectNotification = @"TSXSessionDidFailToConnect"
 - (void)sessionDidConnect;
 - (void)sessionDidDisconnect;
 - (void)sessionDidFailToConnect:(int)reason;
+- (void)sessionWillReconnect;
+- (void)sessionDidReconnect;
 - (void)sessionBitmapContextWillChange;
 - (void)sessionBitmapContextDidChange;
 @end
@@ -258,6 +260,9 @@ static void freeArguments(int argc, char **argv)
 	if (!addArgument(&argc, &argv, "/kbd:unicode:on"))
 		goto out_free;
 
+	if (!addArgument(&argc, &argv, "/auto-reconnect"))
+		goto out_free;
+
 	status =
 	    freerdp_client_settings_parse_command_line(_freerdp->context->settings, argc, argv, FALSE);
 
@@ -334,6 +339,9 @@ out_free:
 	if (mfi->connection_state == TSXConnectionConnecting)
 	{
 		mfi->unwanted = YES;
+
+		// disconnect
+		freerdp_abort_connect_context(_freerdp->context);
 		[self sessionDidDisconnect];
 		return;
 	}
@@ -520,6 +528,18 @@ out_free:
 {
 	if ([[self delegate] respondsToSelector:@selector(sessionWillConnect:)])
 		[[self delegate] sessionWillConnect:self];
+}
+
+- (void)sessionWillReconnect
+{
+	if ([[self delegate] respondsToSelector:@selector(sessionWillReconnect:)])
+		[[self delegate] sessionWillReconnect:self];
+}
+
+- (void)sessionDidReconnect
+{
+	if ([[self delegate] respondsToSelector:@selector(sessionDidReconnect:)])
+		[[self delegate] sessionDidReconnect:self];
 }
 
 - (void)sessionDidConnect

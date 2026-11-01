@@ -11,6 +11,7 @@
 #import <Foundation/Foundation.h>
 
 #import <freerdp/gdi/gdi.h>
+#import <freerdp/client.h>
 #import "ios_freerdp_ui.h"
 
 #import "RDPSession.h"
@@ -134,6 +135,31 @@ DWORD ios_ui_verify_changed_certificate_ex(freerdp *instance, const char *host, 
 {
 	return ios_ui_verify_certificate_ex(instance, host, port, common_name, subject, issuer,
 	                                    fingerprint, flags);
+}
+
+SSIZE_T ios_ui_retry_dialog(freerdp *instance, const char *what, size_t current, void *userarg)
+{
+	WINPR_ASSERT(instance);
+	WINPR_ASSERT(what);
+
+	// waiting for an Azure VM to start ("arm-transport")
+	if (strcmp(what, "connection") != 0)
+		return client_common_retry_dialog(instance, what, current, userarg);
+
+	mfInfo *mfi = MFI_FROM_INSTANCE(instance);
+	WINPR_ASSERT(mfi);
+
+	// cancel button of the connecting view
+	if (mfi->unwanted)
+		return -1;
+
+	if (current == 0)
+		[mfi->session performSelectorOnMainThread:@selector(sessionWillReconnect)
+		                               withObject:nil
+		                            waitUntilDone:NO];
+
+	// delay before the next attempt, in ms
+	return 5000;
 }
 
 #pragma mark -

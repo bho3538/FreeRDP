@@ -31,6 +31,8 @@ extern NSString *TSXSessionDidFailToConnectNotification;
 - (void)sessionDidConnect:(RDPSession *)session;
 - (void)sessionWillDisconnect:(RDPSession *)session;
 - (void)sessionDidDisconnect:(RDPSession *)session;
+- (void)sessionWillReconnect:(RDPSession *)session;
+- (void)sessionDidReconnect:(RDPSession *)session;
 - (void)sessionBitmapContextWillChange:(RDPSession *)session;
 - (void)sessionBitmapContextDidChange:(RDPSession *)session;
 - (void)session:(RDPSession *)session needsRedrawInRect:(CGRect)rect;
